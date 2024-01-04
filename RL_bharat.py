@@ -153,7 +153,7 @@ for e in range(emax):
 print("\nTraining completed!")
 
 print("Saving models...")
-current_model_path = "./saved_models/current_model.pt"
+current_model_path = "./saved_models/model_v1.pt"
 target_model_path = "./saved_models/target_model.pt"
 
 torch.save(policy.state_dict(), current_model_path)

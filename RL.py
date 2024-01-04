@@ -1,7 +1,7 @@
 from GNN import GCN
 from utils import (
     simulate_propagation,
-    find_elegible_node_for_blocking,
+    find_elegible_k_nodes_for_blocking,
     generate_graph,
     graph_totally_infected,
     visualize_graph,

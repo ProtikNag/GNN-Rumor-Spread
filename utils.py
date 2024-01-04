@@ -2,11 +2,28 @@ import torch
 import networkx as nx
 import matplotlib.pyplot as plt
 import random
+import copy
 
+
+def count_subnodes(graph, node, depth):
+    subnodes = set()
+
+    # Explore neighbors up to the specified depth
+    def explore_neighbors(current_node, current_depth):
+        if current_depth <= depth:
+            for neighbor in graph.neighbors(current_node):
+                subnodes.add(neighbor)
+                explore_neighbors(neighbor, current_depth + 1)
+
+    # Start exploring from the given node
+    explore_neighbors(node, 1)
+    return len(subnodes)
 
 def generate_graph(num_nodes):
     # generate weighted and connected graph
-    Graph = nx.full_rary_tree(4, num_nodes)
+    # Graph = nx.gnm_random_graph(num_nodes, (num_nodes*(num_nodes+1)/2)-20, seed=42)
+    Graph = nx.full_rary_tree(3, num_nodes)
+    source_node = random.randint(0, num_nodes-1)
 
     # add weights to edges
     # for edge in Graph.edges:
@@ -18,33 +35,38 @@ def generate_graph(num_nodes):
     # first feature will represent the node's bias (a random value between 0 and 1)
     # second feature will represent if the node is a source node (0 or 1, 1 if the node is the source node)
     # third feature will represent the node's degree
+    max_depth = 4
+    # Calculating shortest path lengths from the source node to all other nodes
+    shortest_paths = nx.shortest_path_length(Graph, source=source_node)
+
     for node in Graph.nodes:
-        Graph.nodes[node]['feature'] = [random.random(), 1 if node == 0 else 0, Graph.degree[node]]
+        Graph.nodes[node]['feature'] = [
+            # random.uniform(1, 1),
+            1,
+            1 if node == source_node else 0,
+            Graph.degree[node],
+            shortest_paths.get(node, float("inf"))
+        ]
 
     node_features = Graph.nodes.data('feature')
-    node_features = torch.tensor([node_feature[1] for node_feature in node_features])
-    edge_index = torch.tensor(list(Graph.edges)).t().contiguous()
+    node_features = torch.tensor([node_feature[1] for node_feature in node_features], dtype=torch.float)
+    edge_index = torch.tensor(list(Graph.edges), dtype=torch.int64).t().contiguous()
 
-    return Graph, node_features, edge_index
+    return Graph, node_features, edge_index, source_node
 
 
-def find_elegible_node_for_blocking(model_output, source_node, blocked_list):
-    # return the node with maximum probability of being infected
+def find_elegible_k_nodes_for_blocking(model_output, source_node, blocked_list, k=1):
+    # return the k nodes with maximum probability of being infected
     # if the node with maximum probability is source_node then return the second maximum probability node
 
-    while True:
-        probabilities = model_output.squeeze()
-        max_prob_node = torch.argmax(probabilities)
+    model_output[source_node] = -1  # Exclude the source node
+    for node in blocked_list:
+        model_output[node] = -1
+    model_output = model_output.squeeze()
 
-        if max_prob_node.item() == source_node or max_prob_node.item() in blocked_list:
-            probabilities[max_prob_node] = -1  # Exclude the max prob node
-            continue
-        else:
-            break
+    return torch.topk(model_output, k).indices.tolist()
 
-    return max_prob_node.item()
-
-def visualize_graph(Graph, source_node, blocked_list, infected_nodes):
+def visualize_graph(Graph, source_node, blocked_list, infected_nodes, filename=None):
     # visualize the graph
     # node to remove is black
     # infected nodes are red
@@ -53,20 +75,29 @@ def visualize_graph(Graph, source_node, blocked_list, infected_nodes):
     for node in Graph.nodes:
         if node in blocked_list:
             node_colors.append('black')
-        elif node == source_node or node in infected_nodes:
+        elif node == source_node:
+            node_colors.append('blue')
+        elif node in infected_nodes:
             node_colors.append('red')
         else:
             node_colors.append('green')
 
     nx.draw(Graph, with_labels=True, node_color=node_colors)
+    if len(blocked_list) > 0:
+        if filename == None:
+            plt.savefig("./Figures/graph.pdf")
+        else:
+            plt.savefig("./Figures/" + filename + ".pdf")
     plt.show()
 
 
 def visualize_loss(loss_list):
     plt.figure(figsize=(16, 12))
     plt.plot(loss_list)
-    plt.xlabel("Episode")
-    plt.ylabel("Loss")
+    plt.xlabel("Episode", fontsize=18)
+    plt.ylabel("Loss", fontsize=18)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
     plt.savefig("./Figures/loss.pdf")
     plt.show()
 
@@ -80,7 +111,7 @@ def simulate_propagation(Graph, source_node):
     propagation_threshhold = 0.5
 
     def dfs(node, parent):
-        if node in visited_nodes:
+        if node in visited_nodes or Graph.nodes.data('feature')[node][0] == 0:
             return
         visited_nodes.append(node)
 
@@ -101,35 +132,71 @@ def simulate_propagation(Graph, source_node):
     # calculate the proportion of infected nodes
     dfs(source_node, -1)
     num_infected_nodes = len(infected_nodes)
+    # print(num_infected_nodes)
     num_total_nodes = Graph.number_of_nodes()
     proportion_infected_nodes = num_infected_nodes / num_total_nodes
 
     return proportion_infected_nodes, infected_nodes
 
 
-def output_with_minimal_infection_rate(Graph, blocked_list):
+def output_with_minimal_infection_rate(Graph, blocked_list, nodes_to_block, source_node=0):
+    # print(Graph.nodes.data('feature'))
     number_of_nodes = Graph.number_of_nodes()
     minimal_infection_rate = 1
     minimal_infection_rate_output = None
     node_to_block_to_minimize_infection_rate = None
+    maximum_viewed_states = 2
 
-    for i in range(2 * number_of_nodes):
-        output = torch.randn(number_of_nodes, 1)
+    def generate_matrix(graph, number_of_nodes, source, nodes_to_be_blocked):
+        matrix = torch.zeros((number_of_nodes, 1), dtype=torch.float)
+        shortest_paths = nx.shortest_path_length(graph, source=source)
+        sorted_nodes = sorted(shortest_paths, key=lambda x: shortest_paths[x])
+
+        # Assign values in the matrix based on proximity to the source node
+        for idx, node in enumerate(sorted_nodes[1:nodes_to_be_blocked + 1]):
+            matrix[node][0] = 1.0
+
+        # # Generate a list of indexes excluding the source node
+        # possible_indexes = list(range(number_of_nodes))
+        # possible_indexes.remove(source)
+        #
+        # # Randomly choose 'nodes_to_be_blocked' number of indexes
+        # blocked_indexes = random.sample(possible_indexes, nodes_to_be_blocked)
+        #
+        # # Fill the matrix with 1s at the selected indexes
+        # for index in blocked_indexes:
+        #     matrix[index][0] = 1.0
+
+        return matrix
+
+
+    for i in range(maximum_viewed_states):
+        # generate zeros output
+        # replace k of them with 1 except for source node and blocked nodes
+        # others will be 0
+        output = generate_matrix(copy.deepcopy(Graph), number_of_nodes, source_node, nodes_to_block)
+
         # make value of source node and blocked nodes 0
         for node in blocked_list:
             output[node] = 0
         output[0] = 0
 
-        blocked_node = find_elegible_node_for_blocking(output, 0, blocked_list)
-        simulation_graph = Graph.copy()
-        simulation_graph.nodes[blocked_node]['feature'][0] = 0
+        blocked_nodes = find_elegible_k_nodes_for_blocking(copy.deepcopy(output), source_node, blocked_list, k=nodes_to_block)
+        simulation_graph = copy.deepcopy(Graph)
 
-        infection_rate, _ = simulate_propagation(simulation_graph, 0)
+        for blocked_node in blocked_nodes:
+            simulation_graph.nodes[blocked_node]['feature'][0] = 0
+
+        # blocked nodes in the simulation graph should also be 0
+        for node in blocked_list:
+            simulation_graph.nodes[node]['feature'][0] = 0
+
+        infection_rate, _ = simulate_propagation(simulation_graph, source_node)
 
         if infection_rate < minimal_infection_rate:
             minimal_infection_rate = infection_rate
             minimal_infection_rate_output = output
-            node_to_block_to_minimize_infection_rate = blocked_node
+            node_to_block_to_minimize_infection_rate = blocked_nodes
 
     return minimal_infection_rate_output, node_to_block_to_minimize_infection_rate
 
