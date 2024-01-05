@@ -23,12 +23,6 @@ class GCN(nn.Module):
         output = torch.relu(output)
         output = self.layer2(output, edge_index)
         output = torch.relu(output)
-        output = self.layer2(output, edge_index)
-        output = torch.relu(output)
-        output = self.layer2(output, edge_index)
-        output = torch.relu(output)
-        output = self.layer2(output, edge_index)
-        output = torch.relu(output)
         output = self.layer3(output, edge_index)
         output = self.softmax(output)
 

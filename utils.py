@@ -140,48 +140,45 @@ def simulate_propagation(Graph, source_node):
 
 
 def output_with_minimal_infection_rate(Graph, blocked_list, nodes_to_block, source_node=0):
-    # print(Graph.nodes.data('feature'))
     number_of_nodes = Graph.number_of_nodes()
     minimal_infection_rate = 1
     minimal_infection_rate_output = None
     node_to_block_to_minimize_infection_rate = None
-    maximum_viewed_states = 2
+    maximum_viewed_states = 1
 
-    def generate_matrix(graph, number_of_nodes, source, nodes_to_be_blocked):
+    def generate_matrix(graph, number_of_nodes, source, nodes_to_be_blocked, blocked_list=[]):
         matrix = torch.zeros((number_of_nodes, 1), dtype=torch.float)
         shortest_paths = nx.shortest_path_length(graph, source=source)
         sorted_nodes = sorted(shortest_paths, key=lambda x: shortest_paths[x])
 
         # Assign values in the matrix based on proximity to the source node
-        for idx, node in enumerate(sorted_nodes[1:nodes_to_be_blocked + 1]):
+        total_blocked = 0
+        for idx, node in enumerate(sorted_nodes[1:]):
+            if total_blocked == nodes_to_be_blocked:
+                break
+            if node in blocked_list:
+                continue
             matrix[node][0] = 1.0
-
-        # # Generate a list of indexes excluding the source node
-        # possible_indexes = list(range(number_of_nodes))
-        # possible_indexes.remove(source)
-        #
-        # # Randomly choose 'nodes_to_be_blocked' number of indexes
-        # blocked_indexes = random.sample(possible_indexes, nodes_to_be_blocked)
-        #
-        # # Fill the matrix with 1s at the selected indexes
-        # for index in blocked_indexes:
-        #     matrix[index][0] = 1.0
+            total_blocked += 1
 
         return matrix
 
 
     for i in range(maximum_viewed_states):
-        # generate zeros output
-        # replace k of them with 1 except for source node and blocked nodes
-        # others will be 0
-        output = generate_matrix(copy.deepcopy(Graph), number_of_nodes, source_node, nodes_to_block)
+        output = generate_matrix(
+            copy.deepcopy(Graph),
+            number_of_nodes,
+            source_node,
+            nodes_to_block,
+            blocked_list
+        )
 
-        # make value of source node and blocked nodes 0
-        for node in blocked_list:
-            output[node] = 0
-        output[0] = 0
-
-        blocked_nodes = find_elegible_k_nodes_for_blocking(copy.deepcopy(output), source_node, blocked_list, k=nodes_to_block)
+        blocked_nodes = find_elegible_k_nodes_for_blocking(
+            copy.deepcopy(output),
+            source_node,
+            blocked_list,
+            k=nodes_to_block
+        )
         simulation_graph = copy.deepcopy(Graph)
 
         for blocked_node in blocked_nodes:

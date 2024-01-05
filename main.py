@@ -12,6 +12,18 @@ from utils import (
 )
 from tqdm import tqdm
 import copy
+from models_comparison import comparison, visualization
+
+
+def calculate(output):
+    # make highest values of output 1 and others 0
+    # return the output
+    output = output.detach().numpy()
+    output = np.where(output == np.amax(output), 1, 0)
+    output = torch.from_numpy(output)
+    output = output.float()
+    output = output.requires_grad_(True)
+    return output
 
 
 if __name__ == '__main__':
@@ -43,10 +55,13 @@ if __name__ == '__main__':
         min_infection_rate = 1
         total_loss = 0
 
+        iteration = 0
         for i in range(num_nodes-2):
-            # remaining_nodes = num_nodes - len(already_blocked_list)
-            # nodes_to_block = int(np.sqrt(remaining_nodes))
-            nodes_to_block = 8
+            remaining_nodes = num_nodes - len(already_blocked_list)
+            nodes_to_block = random.randint(1, 10)
+
+            if nodes_to_block > remaining_nodes:
+                break
 
             target_output, blocked_nodes = output_with_minimal_infection_rate(
                 copy.deepcopy(Graph),
@@ -60,10 +75,15 @@ if __name__ == '__main__':
             policy.train()
             optimizer.zero_grad()
             loss = criterion(policy_output, target_output)
+
+            print("Policy: ", policy_output)
+            # print("Target: ", target_output)
+            # print("Loss: ", loss.item())
+            # print("Blocked nodes: ", blocked_nodes)
+            # print("Nodes to block: ", nodes_to_block)
+
             loss.backward()
             optimizer.step()
-
-            # print(policy_output, target_output, loss.item())
 
             already_blocked_list.extend(blocked_nodes)
             total_loss += loss.item()
@@ -75,15 +95,21 @@ if __name__ == '__main__':
             ir, _ = simulate_propagation(copy.deepcopy(Graph), 0)
             infection_rate.append(ir)
 
-        total_loss /= num_nodes
+            iteration += 1
+
+        total_loss /= iteration
         loss_list.append(total_loss)
 
     visualize_loss(loss_list)
-    # visualize_loss(infection_rate)
 
     print("\nTraining completed!")
     print("Saving models...")
-    current_model_path = "Models/model_v5.pt"
+    current_model_path = "Models/model_v6.pt"
     torch.save(policy.state_dict(), current_model_path)
     print("Models saved successfully!")
+
+    comparison()
+    visualization()
+
+
 
