@@ -1,68 +1,18 @@
 import torch
 import copy
-import networkx as nx
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
+import random as random
 
 from GNN import GCN
-from utils import (
-    generate_graph,
-    simulate_propagation,
-    find_elegible_k_nodes_for_blocking
+from graph_utils import generate_graph, get_graph_properties, update_graph_environment
+from models_utils import get_greedy_model, get_random_model, get_trained_model
+from params import (
+    INPUT_SIZE,
+    HIDDEN_SIZE,
+    OUTPUT_SIZE
 )
 
-
-def get_trained_model(model, graph, node_features, edge_index, source_node, k):
-    model_output = model(node_features, edge_index)
-    blocked_nodes = find_elegible_k_nodes_for_blocking(model_output, source_node, [], k)
-
-    for blocked_node in blocked_nodes:
-        graph.nodes[blocked_node]['feature'][0] = 0
-
-    infection_rate, infected_nodes = simulate_propagation(copy.deepcopy(graph), source_node)
-    return infection_rate, blocked_nodes, infected_nodes
-
-
-def get_greedy_model(graph, source, k):
-    # return output torch with the nodes with the highest degree being 1 and others being 0
-    # exclude the source node as 0
-    nodes_to_be_blocked = k
-    output = torch.zeros((graph.number_of_nodes(), 1))
-    degrees = nx.degree(graph)
-    sorted_nodes = sorted(degrees, key=lambda x: x[1], reverse=True)
-    sorted_nodes = [node[0] for node in sorted_nodes]
-
-    for idx, node in enumerate(sorted_nodes):
-        if nodes_to_be_blocked == 0:
-            break
-        if node == source:
-            continue
-        else:
-            output[node] = 1.0
-            nodes_to_be_blocked -= 1
-
-    blocked_nodes = find_elegible_k_nodes_for_blocking(output, source, [], k)
-
-    for blocked_node in blocked_nodes:
-        graph.nodes[blocked_node]['feature'][0] = 0
-
-    infection_rate, infected_nodes = simulate_propagation(copy.deepcopy(graph), source)
-    return infection_rate, blocked_nodes, infected_nodes
-
-
-def get_random_model(graph, source_node, k):
-    # return k random nodes
-    # exclude the source node
-    # declare output torch with shape number_of_nodes x 1
-    output = torch.rand((graph.number_of_nodes(), 1))
-    blocked_nodes = find_elegible_k_nodes_for_blocking(output, source_node, [], k)
-
-    for blocked_node in blocked_nodes:
-        graph.nodes[blocked_node]['feature'][0] = 0
-
-    infection_rate, infected_nodes = simulate_propagation(copy.deepcopy(graph), source_node)
-    return infection_rate, blocked_nodes, infected_nodes
 
 
 def comparison():
@@ -71,107 +21,99 @@ def comparison():
     # 2. random model
     # 3. greedy model (model that blocks the node with the highest degree)
 
-    input_size = 4  # Number of features per node
-    hidden_size = 128
-    output_size = 1
-    experiment_max = 10
+    experiment_max = 20
     number_of_nodes = [nodes for nodes in range(10, 51, 5)]
-    nodes_to_block = [k for k in range(1, 6, 2)]
 
     df = pd.DataFrame(columns=[
         'Number of Nodes',
-        'Nodes to Block',
         'Trained IR',
-        'Max Trained IR',
-        'Min Trained IR',
         'Random IR',
-        'Max Random IR',
-        'Min Random IR',
-        'Greedy IR',
-        'Max Greedy IR',
-        'Min Greedy IR'
+        'Max Degree IR'
     ])
 
     for num_nodes in number_of_nodes:
 
-        max_trained_infection_rate = 0
-        max_random_infection_rate = 0
-        max_greedy_infection_rate = 0
+        total_trained_infection_rate = 0
+        total_random_infection_rate = 0
+        total_greedy_infection_rate = 0
 
-        min_trained_infection_rate = 1
-        min_random_infection_rate = 1
-        min_greedy_infection_rate = 1
+        for exp in range(experiment_max):
 
-        for k in nodes_to_block:
+            edge_creation_probability = random.uniform(0.25, 0.3)
+            Graph, _, _, _ = generate_graph(
+                num_nodes,
+                edge_creation_probability,
+                'tree'
+            )
 
-            total_trained_infection_rate = 0
-            total_random_infection_rate = 0
-            total_greedy_infection_rate = 0
+            trained_model = GCN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
+            trained_model.load_state_dict(torch.load("Models/model_v7.pt"))
 
-            for i in range(experiment_max):
-                Graph, node_features, edge_index, source_node = generate_graph(num_nodes)
-                trained_model = GCN(input_size, hidden_size, output_size)
-                trained_model.load_state_dict(torch.load("Models/model_v6.pt"))
+            previous_infected_nodes = 0
+            graph = copy.deepcopy(Graph)
 
-                trained_infection_rate, trained_blocked_nodes, trained_infected_nodes = get_trained_model(
+            while True:
+                _, infected_nodes, blocked_nodes, uninfected_nodes = get_graph_properties(graph)
+                if len(uninfected_nodes) == 0 or len(infected_nodes) == previous_infected_nodes:
+                    break
+                previous_infected_nodes = len(infected_nodes)
+
+                graph = get_trained_model(
                     trained_model,
-                    copy.deepcopy(Graph),
-                    node_features,
-                    edge_index,
-                    source_node,
-                    k
+                    copy.deepcopy(graph)
                 )
+                graph = update_graph_environment(copy.deepcopy(graph))
 
-                random_infection_rate, random_blocked_nodes, random_infected_nodes = get_random_model(
-                    copy.deepcopy(Graph),
-                    source_node,
-                    k
-                )
+            _, infected_nodes, _, _ = get_graph_properties(graph)
+            infection_rate_trained = len(infected_nodes) / num_nodes
+            total_trained_infection_rate += infection_rate_trained
 
-                greedy_infection_rate, greedy_blocked_nodes, greedy_infected_nodes = get_greedy_model(
-                    copy.deepcopy(Graph),
-                    source_node,
-                    k
-                )
+            graph = copy.deepcopy(Graph)
+            previous_infected_nodes = 0
 
-                total_trained_infection_rate += trained_infection_rate
-                total_random_infection_rate += random_infection_rate
-                total_greedy_infection_rate += greedy_infection_rate
+            while True:
+                _, infected_nodes, blocked_nodes, uninfected_nodes = get_graph_properties(graph)
+                if len(uninfected_nodes) == 0 or len(infected_nodes) == previous_infected_nodes:
+                    break
+                previous_infected_nodes = len(infected_nodes)
 
-                if trained_infection_rate > max_trained_infection_rate:
-                    max_trained_infection_rate = trained_infection_rate
-                if random_infection_rate > max_random_infection_rate:
-                    max_random_infection_rate = random_infection_rate
-                if greedy_infection_rate > max_greedy_infection_rate:
-                    max_greedy_infection_rate = greedy_infection_rate
+                graph = get_greedy_model(copy.deepcopy(graph))
+                graph = update_graph_environment(copy.deepcopy(graph))
 
-                if trained_infection_rate < min_trained_infection_rate:
-                    min_trained_infection_rate = trained_infection_rate
-                if random_infection_rate < min_random_infection_rate:
-                    min_random_infection_rate = random_infection_rate
-                if greedy_infection_rate < min_greedy_infection_rate:
-                    min_greedy_infection_rate = greedy_infection_rate
+            _, infected_nodes, _, _ = get_graph_properties(graph)
+            infection_rate_greedy = len(infected_nodes) / num_nodes
+            total_greedy_infection_rate += infection_rate_greedy
 
+            graph = copy.deepcopy(Graph)
+            previous_infected_nodes = 0
 
-            total_trained_infection_rate /= experiment_max
-            total_random_infection_rate /= experiment_max
-            total_greedy_infection_rate /= experiment_max
+            while True:
+                _, infected_nodes, blocked_nodes, uninfected_nodes = get_graph_properties(graph)
+                if len(uninfected_nodes) == 0 or len(infected_nodes) == previous_infected_nodes:
+                    break
+                previous_infected_nodes = len(infected_nodes)
 
-            df.loc[len(df)] = {
-                'Number of Nodes': num_nodes,
-                'Nodes to Block': k,
-                'Trained IR': total_trained_infection_rate,
-                'Max Trained IR': max_trained_infection_rate,
-                'Min Trained IR': min_trained_infection_rate,
-                'Random IR': total_random_infection_rate,
-                'Max Random IR': max_random_infection_rate,
-                'Min Random IR': min_random_infection_rate,
-                'Greedy IR': total_greedy_infection_rate,
-                'Max Greedy IR': max_greedy_infection_rate,
-                'Min Greedy IR': min_greedy_infection_rate
-            }
+                graph = get_random_model(copy.deepcopy(graph))
+                graph = update_graph_environment(copy.deepcopy(graph))
+
+            _, infected_nodes, _, _ = get_graph_properties(graph)
+            infection_rate_random = len(infected_nodes) / num_nodes
+            total_random_infection_rate += infection_rate_random
+
+        total_trained_infection_rate /= experiment_max
+        total_greedy_infection_rate /= experiment_max
+        total_random_infection_rate /= experiment_max
+
+        df.loc[len(df)] = {
+            'Number of Nodes': num_nodes,
+            'Trained IR': total_trained_infection_rate,
+            'Random IR': total_random_infection_rate,
+            'Max Degree IR': total_greedy_infection_rate,
+        }
 
     df.to_csv('./Comparison/comparison.csv', index=False)
+
+# comparison()
 
 def visualization():
     # from the csv file read the data
@@ -180,45 +122,11 @@ def visualization():
     # each group will have 3 bars representing the 3 different models
 
     df = pd.read_csv('./Comparison/comparison.csv')
-    number_of_row_column = 3
-    # Get unique values for Number of Nodes
-    node_values = df['Number of Nodes'].unique()
-
-    # Create subplots for each unique value of 'Number of Nodes'
-    fig, axs = plt.subplots(nrows=number_of_row_column, ncols=number_of_row_column, figsize=(16, 12))
-
-    for i, node in enumerate(node_values):
-        # Filter DataFrame for each 'Number of Nodes'
-        node_df = df[df['Number of Nodes'] == node]
-
-        # Get Nodes to Block and IR values for the current 'Number of Nodes'
-        nodes_to_block = node_df['Nodes to Block'].unique()
-        trained_ir = list(node_df['Trained IR'])
-        random_ir = list(node_df['Random IR'])
-        greedy_ir = list(node_df['Greedy IR'])
-
-        # print(trained_ir, random_ir, greedy_ir)
-
-        bar_width = 0.2
-        index = np.arange(len(nodes_to_block))
-
-        # Plotting the bar chart for each subplot
-        index_i = int(i/number_of_row_column)
-        index_j = i%number_of_row_column
-
-        # print(index_i, index_j)
-
-        axs[index_i, index_j].bar(index, trained_ir, bar_width, label='GNN Model')
-        axs[index_i, index_j].bar(index + bar_width, random_ir, bar_width, label='Random Model')
-        axs[index_i, index_j].bar(index + 2 * bar_width, greedy_ir, bar_width, label='Greedy Model')
-
-        axs[index_i, index_j].set_xlabel('Number of Blocked Nodes')
-        axs[index_i, index_j].set_ylabel('Infection Rate')
-        axs[index_i, index_j].set_title(f'Number of Nodes: {node}')
-        axs[index_i, index_j].set_xticks(index + bar_width)
-        axs[index_i, index_j].set_xticklabels(nodes_to_block)
-        axs[index_i, index_j].legend()
-
+    df.plot(x="Number of Nodes", y=["Trained IR", "Random IR", "Max Degree IR"], kind="bar")
+    plt.xlabel("Number of Nodes")
+    plt.ylabel("Infection Rate")
     plt.tight_layout()
     plt.savefig("./Figures/comparison.pdf")
     plt.show()
+
+# visualization()
