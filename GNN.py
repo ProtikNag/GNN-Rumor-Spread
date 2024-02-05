@@ -10,7 +10,8 @@ class GCN(nn.Module):
         self.layer1 = GCNConv(input_size, hidden_size)
         self.layer2 = GCNConv(hidden_size, hidden_size)
         self.layer3 = GCNConv(hidden_size, num_classes)
-        self.softmax = nn.Softmax(dim=0)
+        self.layer4 = nn.Linear(num_classes, num_classes)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, node_features, edge_index):
         output = self.layer1(node_features, edge_index)
@@ -24,6 +25,7 @@ class GCN(nn.Module):
         output = self.layer2(output, edge_index)
         output = torch.relu(output)
         output = self.layer3(output, edge_index)
-        output = self.softmax(output)
+        output = self.layer4(output)
+        output = self.sigmoid(output)
 
         return output

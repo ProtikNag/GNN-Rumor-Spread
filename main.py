@@ -24,8 +24,6 @@ from params import (
 )
 
 
-
-
 if __name__ == '__main__':
     torch.manual_seed(42)
 
@@ -34,19 +32,16 @@ if __name__ == '__main__':
 
     # Initialize the optimizer and loss function
     optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
-    criterion = nn.MSELoss()
-
+    criterion = nn.BCELoss()
 
     loss_list = []                                              # List to store the loss values
 
     for episode in tqdm(range(EPISODE_MAX)):
         # Generate a random graph
-        num_nodes = random.randint(30, 30)
-        edge_creation_probability = random.uniform(0.25, 0.3)
+        num_nodes = random.randint(80, 80)
         Graph, node_features, edge_index, source_node = generate_graph(
             num_nodes,
-            edge_creation_probability,
-            'tree'
+            'erdos_renyi'
         )
 
         previous_infected_nodes = 0
@@ -55,6 +50,7 @@ if __name__ == '__main__':
 
         while True:
             _, infected_nodes, blocked_nodes, uninfected_nodes = get_graph_properties(Graph)
+            # visualize_graph(Graph, blocked_nodes, infected_nodes)
 
             if len(uninfected_nodes) == 0:
                 break
@@ -63,21 +59,23 @@ if __name__ == '__main__':
             policy_output = policy(node_features, edge_index)
 
             policy.train()
-            optimizer.zero_grad()
             loss = criterion(policy_output, target_output)
 
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
 
             # Blocked node cannot propagate the infection
-            Graph.nodes[blocked_node]['feature'][1] = 0
+            # print(Graph.nodes.data('feature'))
+            Graph.nodes[blocked_node]['feature'][0] = -1
             Graph = update_graph_environment(copy.deepcopy(Graph))
+            # print(Graph.nodes.data('feature'))
 
-            if previous_infected_nodes == len(infected_nodes):
-                break
-            previous_infected_nodes = len(infected_nodes)
+            # if previous_infected_nodes == len(infected_nodes):
+            #     break
+            # previous_infected_nodes = len(infected_nodes)
 
             iteration += 1
 
@@ -88,7 +86,7 @@ if __name__ == '__main__':
 
     print("\nTraining completed!")
     print("Saving models...")
-    current_model_path = "Models/model_v7.pt"
+    current_model_path = "Models/model_v9.pt"
     torch.save(policy.state_dict(), current_model_path)
     print("Models saved successfully!")
 

@@ -1,29 +1,21 @@
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 import networkx as nx
+from matplotlib.colors import Normalize
 
 
-def visualize_graph(Graph, blocked_list, infected_nodes, filename=None):
-    # visualize the graph
-    # node to remove is black
-    # infected nodes are red
-    # other nodes are green
-    node_colors = []
+def visualize_graph(Graph):
+    cmap = plt.get_cmap('coolwarm')
+    norm = Normalize(vmin=0, vmax=1)
+    node_colors = [cmap(norm(Graph.nodes.data('feature')[node][0])) for node in Graph.nodes]
+
     for node in Graph.nodes:
-        if node in blocked_list:
-            node_colors.append('black')
-        elif node in infected_nodes:
-            node_colors.append('red')
-        else:
-            node_colors.append('green')
+        if Graph.nodes.data('feature')[node][0] == -1:
+            node_colors[node] = 'black'
+    labels = {node: f"{node}\n{Graph.nodes.data('feature')[node][0]:.2f}" for node in Graph.nodes}
 
     pos = nx.spring_layout(Graph, seed=42)
-    nx.draw(Graph, pos, with_labels=True, node_color=node_colors)
-    if len(blocked_list) > 0:
-        if filename == None:
-            plt.savefig("./Figures/graph.pdf")
-        else:
-            plt.savefig("./Figures/" + filename + ".pdf")
-    plt.savefig("./Figures/graph.pdf")
+    nx.draw(Graph, pos, with_labels=True, labels=labels, nodelist=list(Graph.nodes()), node_color=node_colors)
     plt.show()
 
 
