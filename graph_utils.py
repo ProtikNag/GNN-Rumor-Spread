@@ -14,13 +14,14 @@ def update_graph_environment(Graph):
             infected_nodes.append(node)
 
     updated_this_iteration = []              # a node can be updated through only one source node
-    increment_factor = 0.25
     for node in infected_nodes:
         for neighbor in Graph.neighbors(node):
             if neighbor in updated_this_iteration:
                 continue
             if Graph.nodes.data('feature')[neighbor][0] != -1:
-                Graph.nodes[neighbor]['feature'][0] = min(1, (Graph.nodes[neighbor]['feature'][0] + increment_factor))
+                diff = Graph.nodes.data('feature')[node][2] - Graph.nodes.data('feature')[neighbor][2]
+                increment_factor = Graph.edges[node, neighbor]['weight']
+                Graph.nodes[neighbor]['feature'][0] = min(1, increment_factor * (Graph.nodes[neighbor]['feature'][0] + diff))
                 updated_this_iteration.append(neighbor)
 
     # degree of the nodes will be updated
@@ -94,7 +95,7 @@ def generate_graph(num_nodes, graph_type="erdos_renyi"):
     Graph = None
 
     if graph_type == 'small-world':
-        k = 3       # everage degree of the nodes
+        k = 3       # average degree of the nodes
         p = 0.8     # probability of rewiring
         Graph = nx.watts_strogatz_graph(num_nodes, k, p)
     elif graph_type == 'erdos_renyi':
@@ -102,17 +103,15 @@ def generate_graph(num_nodes, graph_type="erdos_renyi"):
         Graph = nx.fast_gnp_random_graph(num_nodes, edge_creation_probability, seed=42)
 
     source_node = random.randint(0, num_nodes-1)
-    # add weights to edges
-    # for edge in Graph.edges:
-    #     Graph.edges[edge]['weight'] = random.random()
-
-    # add 4 features to each node
-    # [0]: opinion value, [1]: degree, [2]: shortest path length from the source node
     shortest_paths = nx.shortest_path_length(Graph, source=source_node)
+
+    # Assign random values between 0 and 1 to the edges
+    for edge in Graph.edges():
+        Graph[edge[0]][edge[1]]['weight'] = random.uniform(0, 1)
 
     for node in Graph.nodes:
         Graph.nodes[node]['feature'] = [
-            1 if node == source_node else 0,
+            1 if node == source_node else random.uniform(0, 1),
             Graph.degree[node],
             shortest_paths.get(node, Graph.number_of_nodes())
         ]
@@ -120,8 +119,10 @@ def generate_graph(num_nodes, graph_type="erdos_renyi"):
     node_features = Graph.nodes.data('feature')
     node_features = torch.tensor([node_feature[1] for node_feature in node_features], dtype=torch.float)
     edge_index = torch.tensor(list(Graph.edges), dtype=torch.int64).t().contiguous()
+    edge_weights = [Graph[edge[0]][edge[1]]['weight'] for edge in Graph.edges()]
+    weights_tensor = torch.tensor(edge_weights)
 
-    return Graph, node_features, edge_index, source_node
+    return Graph, node_features, edge_index, source_node, weights_tensor
 
 
 def simulate_propagation(Graph):

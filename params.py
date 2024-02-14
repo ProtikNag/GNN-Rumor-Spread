@@ -2,7 +2,7 @@
     This file contains all the parameters used in the project.
 """
 
-EPISODE_MAX = 30
+EPISODE_MAX = 20
 INPUT_SIZE = 3
 HIDDEN_SIZE = 64
 OUTPUT_SIZE = 1

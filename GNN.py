@@ -13,18 +13,18 @@ class GCN(nn.Module):
         self.layer4 = nn.Linear(num_classes, num_classes)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, node_features, edge_index):
-        output = self.layer1(node_features, edge_index)
+    def forward(self, node_features, edge_index, edge_weight=None):
+        output = self.layer1(node_features, edge_index, edge_weight)
         output = torch.relu(output)
-        output = self.layer2(output, edge_index)
+        output = self.layer2(output, edge_index, edge_weight)
         output = torch.relu(output)
-        output = self.layer2(output, edge_index)
+        output = self.layer2(output, edge_index, edge_weight)
         output = torch.relu(output)
-        output = self.layer2(output, edge_index)
+        output = self.layer2(output, edge_index, edge_weight)
         output = torch.relu(output)
-        output = self.layer2(output, edge_index)
+        output = self.layer2(output, edge_index, edge_weight)
         output = torch.relu(output)
-        output = self.layer3(output, edge_index)
+        output = self.layer3(output, edge_index, edge_weight)
         output = self.layer4(output)
         output = self.sigmoid(output)
 

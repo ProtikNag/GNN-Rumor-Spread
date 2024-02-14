@@ -54,7 +54,9 @@ def get_trained_model(model, graph):
     node_features = graph.nodes.data('feature')
     node_features = torch.tensor([node_feature[1] for node_feature in node_features], dtype=torch.float)
     edge_index = torch.tensor(list(graph.edges), dtype=torch.int64).t().contiguous()
-    model_output = model(node_features, edge_index)
+    edge_weights = [graph[edge[0]][edge[1]]['weight'] for edge in graph.edges()]
+    edge_weight = torch.tensor(edge_weights)
+    model_output = model(node_features, edge_index, edge_weight)
 
     number_of_nodes, infected_nodes, blocked_nodes, uninfected_nodes = get_graph_properties(graph)
     blocked_node = find_node_to_block(model_output, infected_nodes, blocked_nodes)

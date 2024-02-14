@@ -23,7 +23,7 @@ def comparison():
     # 2. random model
     # 3. greedy model (model that blocks the node with the highest degree)
 
-    number_of_nodes = [nodes for nodes in range(10, 101, 20)]
+    number_of_nodes = [nodes for nodes in range(10, 151, 20)]
 
     df = pd.DataFrame(columns=[
         'Number of Nodes',
@@ -39,13 +39,13 @@ def comparison():
         total_greedy_infection_rate = 0
 
         for exp in range(EXPERIMENT_MAX):
-            Graph, _, _, _ = generate_graph(
+            Graph, _, _, _, _ = generate_graph(
                 num_nodes,
-                'small-world',
+                'small-world'
             )
 
             trained_model = GCN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
-            trained_model.load_state_dict(torch.load("Models/model_v9.pt"))
+            trained_model.load_state_dict(torch.load("Models/model_v10.pt"))
 
             graph = copy.deepcopy(Graph)
 

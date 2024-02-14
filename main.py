@@ -38,10 +38,10 @@ if __name__ == '__main__':
 
     for episode in tqdm(range(EPISODE_MAX)):
         # Generate a random graph
-        num_nodes = random.randint(80, 80)
-        Graph, node_features, edge_index, source_node = generate_graph(
+        num_nodes = random.randint(100, 100)
+        Graph, node_features, edge_index, source_node, edge_weight = generate_graph(
             num_nodes,
-            'erdos_renyi'
+            'small-world'
         )
 
         previous_infected_nodes = 0
@@ -56,7 +56,7 @@ if __name__ == '__main__':
                 break
 
             target_output, blocked_node = output_with_minimal_infection_rate(copy.deepcopy(Graph))
-            policy_output = policy(node_features, edge_index)
+            policy_output = policy(node_features, edge_index, edge_weight)
 
             policy.train()
             loss = criterion(policy_output, target_output)
@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     print("\nTraining completed!")
     print("Saving models...")
-    current_model_path = "Models/model_v9.pt"
+    current_model_path = "Models/model_v10.pt"
     torch.save(policy.state_dict(), current_model_path)
     print("Models saved successfully!")
 

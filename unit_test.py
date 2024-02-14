@@ -17,7 +17,7 @@ from models_utils import find_node_to_block
 
 
 def find_new_source_nodes(Graph):
-    # if a node is infected, its immediates neighbors will be also infected
+    # if a node is infected, its immediate neighbors will be also infected
 
     infected_nodes = []
     for node in Graph.nodes:
@@ -35,11 +35,11 @@ def find_new_source_nodes(Graph):
 
 
 
-Graph, node_features, edge_index, source_node = generate_graph(15, 'small-world')
+Graph, node_features, edge_index, source_node, edge_weight = generate_graph(10, 'small-world')
 
 # source_node = 4
 trained_model = GCN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
-trained_model.load_state_dict(torch.load("Models/model_v8.pt"))
+trained_model.load_state_dict(torch.load("Models/model_v10.pt"))
 
 total_nodes_to_be_blocked = 10
 
@@ -54,7 +54,7 @@ for i in range(total_nodes_to_be_blocked):
 
     visualize_graph(Graph)
 
-    model_output = trained_model(node_features, edge_index)
+    model_output = trained_model(node_features, edge_index, edge_weight)
     blocked_node = find_node_to_block(model_output, infected_nodes, blocked_nodes)
     blocked_nodes.append(blocked_node)
 
