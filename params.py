@@ -10,5 +10,7 @@ LEARNING_RATE = 0.001
 
 GRAPH_TYPE = ['erdos_renyi', 'tree', 'random']
 
+INFECTION_THRESHOLD = 0.95
+
 EXPERIMENT_MAX = 5
 

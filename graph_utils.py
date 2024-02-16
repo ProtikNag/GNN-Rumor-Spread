@@ -3,6 +3,8 @@ import networkx as nx
 import random
 import copy
 
+from params import INFECTION_THRESHOLD
+
 
 def update_graph_environment(Graph):
     # update the graph environment
@@ -10,18 +12,18 @@ def update_graph_environment(Graph):
     # blocked nodes cannot be infected
     infected_nodes = []
     for node in Graph.nodes:
-        if Graph.nodes.data('feature')[node][0] == 1:
+        if Graph.nodes.data('feature')[node][0] >= INFECTION_THRESHOLD:
             infected_nodes.append(node)
 
     updated_this_iteration = []              # a node can be updated through only one source node
     for node in infected_nodes:
         for neighbor in Graph.neighbors(node):
-            if neighbor in updated_this_iteration:
+            if neighbor in updated_this_iteration or Graph.nodes.data('feature')[neighbor][0] == -1:
                 continue
-            if Graph.nodes.data('feature')[neighbor][0] != -1:
-                diff = Graph.nodes.data('feature')[node][2] - Graph.nodes.data('feature')[neighbor][2]
-                increment_factor = Graph.edges[node, neighbor]['weight']
-                Graph.nodes[neighbor]['feature'][0] = min(1, increment_factor * (Graph.nodes[neighbor]['feature'][0] + diff))
+            if Graph.nodes.data('feature')[neighbor][0] < INFECTION_THRESHOLD:
+                diff = Graph.nodes.data('feature')[node][0] - Graph.nodes.data('feature')[neighbor][0]
+                increment_factor = Graph.edges[node, neighbor]['weight'] * diff
+                Graph.nodes[neighbor]['feature'][0] = min(1, (Graph.nodes[neighbor]['feature'][0] + increment_factor))
                 updated_this_iteration.append(neighbor)
 
     # degree of the nodes will be updated
@@ -30,7 +32,8 @@ def update_graph_environment(Graph):
         Graph.nodes[node]['feature'][1] = Graph.degree[node]
 
         for neighbor in Graph.neighbors(node):
-            if Graph.nodes.data('feature')[neighbor][0] in [-1, 1]:
+            if (Graph.nodes.data('feature')[neighbor][0] == -1
+                    or Graph.nodes.data('feature')[neighbor][0] >= INFECTION_THRESHOLD):
                 Graph.nodes[node]['feature'][1] -= 1
 
     def bfs(Graph, current_node):
@@ -45,7 +48,7 @@ def update_graph_environment(Graph):
 
         while queue:
             node = queue.pop(0)
-            if Graph.nodes.data('feature')[node][0] == 1:
+            if Graph.nodes.data('feature')[node][0] > INFECTION_THRESHOLD:
                 if distance[node] < shortest_path_length:
                     shortest_path_length = distance[node]
                 continue
@@ -58,7 +61,7 @@ def update_graph_environment(Graph):
 
     # calculating the shortest path from each node using a bfs
     for node in Graph.nodes:
-        if Graph.nodes[node]['feature'][0] == 1:
+        if Graph.nodes[node]['feature'][0] >= INFECTION_THRESHOLD:
             Graph.nodes[node]['feature'][2] = 0
             continue
         elif Graph.nodes[node]['feature'][0] == -1:
@@ -82,11 +85,11 @@ def get_graph_properties(Graph):
     # 0: blocked
     # 1: infected
     for node in Graph.nodes:
-        if Graph.nodes.data('feature')[node][0] not in [-1, 1]:
+        if Graph.nodes.data('feature')[node][0] != -1 and Graph.nodes.data('feature')[node][0] < INFECTION_THRESHOLD:
             uninfected_nodes.append(node)
-        elif Graph.nodes.data('feature')[node][0] == -1:
+        if Graph.nodes.data('feature')[node][0] == -1:
             blocked_nodes.append(node)
-        elif Graph.nodes.data('feature')[node][0] == 1:
+        if Graph.nodes.data('feature')[node][0] >= INFECTION_THRESHOLD:
             infected_nodes.append(node)
 
     return number_of_nodes, infected_nodes, blocked_nodes, uninfected_nodes
@@ -111,7 +114,7 @@ def generate_graph(num_nodes, graph_type="erdos_renyi"):
 
     for node in Graph.nodes:
         Graph.nodes[node]['feature'] = [
-            1 if node == source_node else random.uniform(0, 1),
+            1 if node == source_node else random.uniform(0, 0.9),
             Graph.degree[node],
             shortest_paths.get(node, Graph.number_of_nodes())
         ]

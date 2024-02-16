@@ -1,6 +1,7 @@
 import random
 import torch
 from graph_utils import get_graph_properties
+from params import INFECTION_THRESHOLD
 
 def find_node_to_block(output, infected, blocked):
     """
@@ -25,7 +26,7 @@ def find_node_to_block(output, infected, blocked):
 def get_greedy_model(graph):
     degree_dict = {}
     for node in graph.nodes:
-        if graph.nodes.data('feature')[node][0] not in [-1, 1]:
+        if graph.nodes.data('feature')[node][0] != -1 and graph.nodes.data('feature')[node][0] < INFECTION_THRESHOLD:
             degree_dict[node] = graph.degree[node]
 
     max_key = next(iter(degree_dict))
@@ -41,7 +42,7 @@ def get_greedy_model(graph):
 def get_random_model(graph):
     remaining_nodes = []
     for node in graph.nodes:
-        if graph.nodes[node]['feature'][0] not in [-1, 1]:
+        if graph.nodes[node]['feature'][0] != -1 and graph.nodes[node]['feature'][0] < INFECTION_THRESHOLD:
             remaining_nodes.append(node)
 
     blocked_node = random.choice(remaining_nodes)

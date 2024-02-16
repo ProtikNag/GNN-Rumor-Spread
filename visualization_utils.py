@@ -13,9 +13,17 @@ def visualize_graph(Graph):
         if Graph.nodes.data('feature')[node][0] == -1:
             node_colors[node] = 'black'
     labels = {node: f"{node}\n{Graph.nodes.data('feature')[node][0]:.2f}" for node in Graph.nodes}
+    # edge_labels = {(edge[0], edge[1]): Graph[edge[0]][edge[1]]['weight'] for edge in Graph.edges}
 
     pos = nx.spring_layout(Graph, seed=42)
-    nx.draw(Graph, pos, with_labels=True, labels=labels, nodelist=list(Graph.nodes()), node_color=node_colors)
+    nx.draw(
+        Graph,
+        pos,
+        with_labels=True,
+        labels=labels,
+        nodelist=list(Graph.nodes()),
+        node_color=node_colors
+    )
     plt.show()
 
 

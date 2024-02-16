@@ -23,7 +23,7 @@ def comparison():
     # 2. random model
     # 3. greedy model (model that blocks the node with the highest degree)
 
-    number_of_nodes = [nodes for nodes in range(10, 151, 20)]
+    number_of_nodes = [nodes for nodes in range(10, 51, 5)]
 
     df = pd.DataFrame(columns=[
         'Number of Nodes',

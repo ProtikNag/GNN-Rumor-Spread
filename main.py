@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     for episode in tqdm(range(EPISODE_MAX)):
         # Generate a random graph
-        num_nodes = random.randint(100, 100)
+        num_nodes = random.randint(10, 10)
         Graph, node_features, edge_index, source_node, edge_weight = generate_graph(
             num_nodes,
             'small-world'
